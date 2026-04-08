@@ -2,116 +2,127 @@ import subprocess
 import re
 import os
 import sys
-
-import csv
+import glob
 from datetime import datetime
 
-CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "paths.csv")
+PATH_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "path.txt")
+WORKSHOP_PATH_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "workshop_path.txt")
+
 EXECUTABLES = ["arma3.exe", "arma3_x64.exe", "arma3battleye.exe"]
 
-def get_path_from_csv(path_type):
-    if not os.path.exists(CSV_PATH):
-        with open(CSV_PATH, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['type', 'path', 'comment'])
-            writer.writeheader()
-        return None
-    with open(CSV_PATH, newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row['type'] == path_type:
-                return row['path']
+
+def load_saved_path():
+    if os.path.exists(PATH_FILE):
+        with open(PATH_FILE, "r", encoding="utf-8") as f:
+            path = f.read().strip()
+            if path:
+                return path
     return None
 
-def set_path_in_csv(path_type, path, comment=None):
-    rows = []
-    found = False
-    if os.path.exists(CSV_PATH):
-        with open(CSV_PATH, newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row['type'] == path_type:
-                    row['path'] = path
-                    if comment is not None:
-                        row['comment'] = comment
-                    found = True
-                rows.append(row)
-    if not found:
-        rows.append({'type': path_type, 'path': path, 'comment': comment or ''})
-    with open(CSV_PATH, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=['type', 'path', 'comment'])
-        writer.writeheader()
-        writer.writerows(rows)
+
+def save_path(path):
+    with open(PATH_FILE, "w", encoding="utf-8") as f:
+        f.write(path)
+
 
 def get_arma_path():
-    path = get_path_from_csv('arma')
-    while True:
-        if path and os.path.isdir(path):
-            # Only accept if at least one executable exists
-            if any(os.path.isfile(os.path.join(path, exe)) for exe in EXECUTABLES):
-                return path
-            else:
-                print(f"Directory exists but no Arma 3 executables found in: {path}")
-        path = input("Enter the PATH to your Arma 3 folder: ").strip().strip('"')
-        if not os.path.isdir(path):
-            print(f"Directory not found: {path}")
-            path = None
-            continue
-        if not any(os.path.isfile(os.path.join(path, exe)) for exe in EXECUTABLES):
-            print(f"No Arma 3 executables found in: {path}")
-            path = None
-            continue
-        set_path_in_csv('arma', path, 'Main Arma 3 directory')
-        return path
+    saved = load_saved_path()
+    if saved:
+        if os.path.isdir(saved):
+            print(f"Current PATH of ArmA's folder: {saved}")
+            choice = input("Use this PATH? (Y / N): ").strip().lower()
+            if choice == "y":
+                return saved
+        else:
+            path_filename = os.path.basename(PATH_FILE)
+            print(f"Saved PATH is not valid: {saved}")
+            print(f"You can also manually edit \"{path_filename}\" to update the PATH.")
+            choice = input("Try again? (Y / N): ").strip().lower()
+            if choice != "y" and choice != "":
+                wait_and_exit()
 
-def get_workshop_path(arma_path):
     while True:
-        path = get_path_from_csv('workshop')
-        if path and validate_workshop_path(path, arma_path):
+        path = input("Enter the PATH to your Arma 3 folder: ").strip().strip('"')
+        if os.path.isdir(path):
+            save_path(path)
+            print(f"PATH saved to {PATH_FILE}")
             return path
-        path = input("Enter the Workshop PATH (e.g. ...\\workshop\\content\\107410): ").strip().strip('"')
-        if path.lower() == "quit":
-            return None
-        if validate_workshop_path(path, arma_path):
-            set_path_in_csv('workshop', path, 'Steam Workshop mods folder')
-            return path
+        else:
+            path_filename = os.path.basename(PATH_FILE)
+            print(f"Directory not found: {path}")
+            print(f"You can also manually edit \"{path_filename}\" to update the PATH.")
+            choice = input("Try again? (Y / N): ").strip().lower()
+            if choice != "y" and choice != "":
+                wait_and_exit()
+
+
+def wait_and_exit():
+    input("\nPress any key to close...")
+    sys.exit(0)
+
+
+def load_workshop_path():
+    if os.path.exists(WORKSHOP_PATH_FILE):
+        with open(WORKSHOP_PATH_FILE, "r", encoding="utf-8") as f:
+            path = f.read().strip()
+            if path:
+                return path
+    return None
+
+
+def save_workshop_path(path):
+    with open(WORKSHOP_PATH_FILE, "w", encoding="utf-8") as f:
+        f.write(path)
+
 
 def validate_workshop_path(path, arma_path):
     if not os.path.isdir(path):
         print(f"Directory not found: {path}")
         return False
+
     arma_drive = os.path.splitdrive(arma_path)[0].upper()
     workshop_drive = os.path.splitdrive(path)[0].upper()
     if arma_drive != workshop_drive:
         print(f"Workshop PATH is on drive {workshop_drive} but Arma 3 is on drive {arma_drive}.")
         print("They must be on the same drive.")
         return False
+
     contents = os.listdir(path)
     if not contents:
         print("Workshop PATH has been defined but it has no mods.")
         return False
-        CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "paths.csv")
 
-        def get_arma_path():
-            path = get_path_from_csv('arma')
-            while not path or not os.path.isdir(path):
-                path = input("Enter the PATH to your Arma 3 folder: ").strip().strip('"')
-                if not os.path.isdir(path):
-                    print(f"Directory not found: {path}")
-                    continue
-                set_path_in_csv('arma', path, 'Main Arma 3 directory')
+    return True
+
+
+def get_workshop_path(arma_path):
+    saved = load_workshop_path()
+    if saved:
+        if validate_workshop_path(saved, arma_path):
+            print(f"\nCurrent Workshop PATH: {saved}")
+            choice = input("Use this Workshop PATH? (Y / N): ").strip().lower()
+            if choice == "y":
+                return saved
+        else:
+            print(f"Saved Workshop PATH is not valid: {saved}")
+
+    guessed = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(arma_path))),
+                           "workshop", "content", "107410")
+    if validate_workshop_path(guessed, arma_path):
+        print(f"\nDetected Workshop PATH: {guessed}")
+        choice = input("Use this Workshop PATH? (Y / N): ").strip().lower()
+        if choice == "y":
+            save_workshop_path(guessed)
+            return guessed
+
+    while True:
+        path = input("Enter the Workshop PATH (e.g. ...\\workshop\\content\\107410) (type QUIT to skip): ").strip().strip('"')
+        if path.lower() == "quit":
+            return None
+        if validate_workshop_path(path, arma_path):
+            save_workshop_path(path)
+            print(f"Workshop PATH saved to {WORKSHOP_PATH_FILE}")
             return path
-            return path
-        def get_workshop_path(arma_path):
-            while True:
-                path = get_path_from_csv('workshop')
-                if path and validate_workshop_path(path, arma_path):
-                    return path
-                path = input("Enter the Workshop PATH (e.g. ...\\workshop\\content\\107410): ").strip().strip('"')
-                if path.lower() == "quit":
-                    return None
-                if validate_workshop_path(path, arma_path):
-                    set_path_in_csv('workshop', path, 'Steam Workshop mods folder')
-                    return path
 
 
 def resolve_mod_ids(mod_names, mod_paths, workshop_path):
@@ -250,27 +261,64 @@ def extract_mods(commandline):
 def main():
     print("=== Arma 3 Mod Reader ===\n")
 
+    print("Checking for running Arma 3 processes...")
+    running = check_running_processes()
+    saved_path = load_saved_path()
 
-    arma_path = get_arma_path()
-    print(f"\nChecking for running Arma 3 processes...")
-    running = check_running_processes(arma_path)
     if not running:
-        print(f"\n{', '.join(EXECUTABLES)} are not running.")
-        print(f"Arma PATH: {arma_path}")
-        print("Please run Arma 3 with mods first.")
+        if saved_path:
+            has_exes = any(os.path.isfile(os.path.join(saved_path, exe)) for exe in EXECUTABLES)
+            if has_exes:
+                print(f"\n{', '.join(EXECUTABLES)} are not running.")
+                print(f"Saved PATH: {saved_path}")
+                print("Please run Arma 3 with mods first.")
+                wait_and_exit()
+            else:
+                print(f"\nSaved PATH does not contain any Arma 3 executables: {saved_path}")
+
+        print("\nThere's no executables running, do you want to define the PATH? Either way this will close.")
+        choice = input("(Y / N): ").strip().lower()
+        if choice == "y":
+            while True:
+                path = input("Enter the PATH to your Arma 3 folder (type QUIT to exit): ").strip().strip('"')
+                if path.lower() == "quit":
+                    wait_and_exit()
+                if not os.path.isdir(path):
+                    print(f"Directory not found: {path}")
+                    continue
+                found_exes = [exe for exe in EXECUTABLES if os.path.isfile(os.path.join(path, exe))]
+                if not found_exes:
+                    print("Not a valid Arma 3 PATH - none of the executables found:")
+                    for exe in EXECUTABLES:
+                        print(f"  [MISSING] {exe}")
+                    print("Try again or type QUIT to exit.")
+                    continue
+                save_path(path)
+                print(f"PATH saved to {PATH_FILE}")
+                print("Found executables:")
+                for exe in EXECUTABLES:
+                    if exe in found_exes:
+                        print(f"  [OK] {exe}")
+                    else:
+                        print(f"  [MISSING] {exe}")
+                print("\nPATH saved. Now run Arma 3 with mods and start this tool again.")
+                break
         wait_and_exit()
+
+    print(f"\nRunning (system-wide): {', '.join(running)}")
+    arma_path = get_arma_path()
     if not check_executables(arma_path):
         wait_and_exit()
 
     print(f"\nVerifying processes are running from defined PATH...")
     running_from_path = check_running_processes(arma_path)
+
     if not running_from_path:
         print(f"\nExecutables are running but NOT from your defined PATH:")
         print(f"  {arma_path}")
         print("The running Arma 3 instance may be from a different install.")
         wait_and_exit()
 
-    workshop_path = get_workshop_path(arma_path)
     print("\nReading command lines from running executables...")
     cmd_lines = get_commandlines(arma_path)
 
@@ -324,12 +372,12 @@ def main():
 
     if choice in ("1", "3"):
         print(f"\n--- Active Mods ({len(unique_mods)}) ---")
-        for mod in unique_mods:
+        for idx, mod in enumerate(unique_mods, 1):
             mod_id = mod_ids.get(mod)
             if mod_id:
-                print(f"  {mod} [ ID: {mod_id} ]")
+                print(f"  {idx} - {mod} [ ID: {mod_id} ]")
             else:
-                print(f"  {mod} [ ID: unknown ]")
+                print(f"  {idx} - {mod} [ ID: unknown ]")
 
     if choice in ("2", "3"):
         today = datetime.now()
